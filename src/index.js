@@ -14,60 +14,73 @@ app.use(express.json());
 function getVoterIdFromHeader(req) {
     return req.headers["x-voter-id"] || req.body.voterId || null;
 }
-
+// Верификация initData (опционально, для безопасности)
+app.post('/api/verify-init-data', (req, res) => {
+    const { initData, botToken } = req.body;  // botToken передается с фронта (не храните в коде!)
+    if (!initData) return res.status(400).json({ error: 'initData required' });
+    // Простая верификация (используйте crypto для HMAC в проде)
+    try {
+        const userData = JSON.parse(initData);
+        res.json({ valid: true, user: userData.user });
+    } catch (error) {
+        res.status(400).json({ error: 'Invalid initData' });
+    }
+});
 // --- Routes ---
 
 // Get categories and regions
-app.get("/api/meta", async (req, res) => {
+app.get('/api/meta', async (req, res) => {
     try {
         const petitions = await prisma.petition.findMany();
-        const categories = Array.from(new Set(petitions.map((p) => p.category).filter(Boolean)));
-        const regions = Array.from(new Set(petitions.map((p) => p.region).filter(Boolean)));
+        const categories = Array.from(new Set(petitions.map(p => p.category).filter(Boolean)));
+        const regions = Array.from(new Set(petitions.map(p => p.region).filter(Boolean)));
         res.json({ categories, regions });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Failed to fetch meta" });
+        res.status(500).json({ error: 'Failed to fetch meta' });
     }
 });
 
 // List petitions with search + filter + pagination
-app.get("/api/petitions", async (req, res) => {
+app.get('/api/petitions', async (req, res) => {
     try {
-        const { q, category, region, page = "1", perPage = "20", sort = "createdAt-desc" } = req.query;
+        const { q, category, region, page = '1', perPage = '20', sort = 'createdAt-desc' } = req.query;
         const where = {};
 
-        if (q && q !== "undefined") {
+        if (q && q !== 'undefined') {
             where.OR = [
-                { title: { contains: q, mode: "insensitive" } },
-                { description: { contains: q, mode: "insensitive" } },
-                { authorName: { contains: q, mode: "insensitive" } },
+                { title: { contains: q, mode: 'insensitive' } },
+                { description: { contains: q, mode: 'insensitive' } },
+                { authorName: { contains: q, mode: 'insensitive' } }
             ];
         }
-        if (category && category !== "undefined") where.category = category;
-        if (region && region !== "undefined") where.region = region;
+        if (category && category !== 'undefined') where.category = category;
+        if (region && region !== 'undefined') where.region = region;
 
         const skip = (Number(page) - 1) * Number(perPage);
         const take = Number(perPage) || 20;
 
         const orderBy = {};
-        if (sort === "votes-desc") orderBy.votes = "desc";
-        else if (sort === "votes-asc") orderBy.votes = "asc";
-        else if (sort === "createdAt-desc") orderBy.createdAt = "desc";
-        else if (sort === "createdAt-asc") orderBy.createdAt = "asc";
-        else orderBy.createdAt = "desc"; // Default
+        switch (sort) {
+            case 'votes-desc': orderBy.votes = 'desc'; break;
+            case 'votes-asc': orderBy.votes = 'asc'; break;
+            case 'createdAt-desc': orderBy.createdAt = 'desc'; break;
+            case 'createdAt-asc': orderBy.createdAt = 'asc'; break;
+            default: orderBy.createdAt = 'desc';
+        }
 
         const petitions = await prisma.petition.findMany({
             where,
             orderBy,
             skip,
-            take,
+            take
         });
         const total = await prisma.petition.count({ where });
 
         res.json({ data: petitions, totalPages: Math.ceil(total / take) });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Failed to fetch petitions", details: error.message });
+        res.status(500).json({ error: 'Failed to fetch petitions' });
     }
 });
 
