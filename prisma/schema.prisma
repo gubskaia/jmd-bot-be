@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Petition {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  category    String
+  region      String
+  authorName  String
+  createdAt   DateTime @default(now())
+  votes       Int      @default(0)
+  // simple tags/keywords could be a string list, but keep simple
+}
+
+model Vote {
+  id         Int      @id @default(autoincrement())
+  petitionId Int
+  voterId    String   // simple string to represent user (telegram id or random)
+  createdAt  DateTime @default(now())
+
+  @@unique([petitionId, voterId])
+}
